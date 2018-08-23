@@ -8,12 +8,15 @@ import akka.stream.ActorMaterializer
 import com.danielasfregola.twitter4s.TwitterRestClient
 import com.danielasfregola.twitter4s.entities.Tweet
 
-object WebServer extends App {
+object WebServer extends App with JsonSupport {
   implicit val system = ActorSystem("actor-system")
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = system.dispatcher
 
   val twitterClient = TwitterRestClient()
+
+  def uppercase(tweet: Tweet): Tweet =
+    tweet.copy(text = tweet.text.toUpperCase)
 
   def getTweets(username: String, count: Int): Future[Seq[Tweet]] =
     twitterClient
@@ -24,7 +27,12 @@ object WebServer extends App {
     path("shout") {
       get {
         parameters('username.as[String], 'n.as[Int]) { (username, numOfTweets) =>
-          complete(s"List $numOfTweets tweets of $username</h1>")
+          val futureTweets = getTweets(username, numOfTweets)
+            .map(_.map(uppercase))
+
+          onSuccess(futureTweets) {
+            tweets => complete(tweets.map(TweetJsonWriter.write))
+          }
         }
       }
     }
