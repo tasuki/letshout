@@ -8,4 +8,10 @@ trait JsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
       JsString(t.text)
     }
   }
+
+  implicit object ExceptionJsonWriter extends RootJsonWriter[Exception] {
+    def write(e: Exception): JsValue = {
+      JsObject("error" -> JsString(e.getMessage))
+    }
+  }
 }
