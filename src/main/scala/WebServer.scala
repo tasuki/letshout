@@ -6,13 +6,21 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.ExceptionHandler
 import akka.stream.ActorMaterializer
-import com.danielasfregola.twitter4s.exceptions.TwitterException
 
 object WebServer extends App with JsonSupport {
   implicit val system = ActorSystem("actor-system")
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = system.dispatcher
+
+  val exceptionHandler = ExceptionHandler {
+    case e: TwitterNotFoundException =>
+      complete(StatusCodes.NotFound, new Exception(e.getMessage))
+    case e =>
+      println("Internal server error: " + e.getMessage)
+      complete(StatusCodes.InternalServerError, new Exception("Internal Server error"))
+  }
 
   def shout(tweet: Tweet): Tweet =
     tweet.copy(text = tweet.text.toUpperCase + "!")
@@ -21,22 +29,17 @@ object WebServer extends App with JsonSupport {
     val futureTweets = Twitter.getTweets(username, numOfTweets)
       .map(_.map(shout))
 
-    onComplete(futureTweets) {
-      case Success(tweets) => complete(tweets.map(TweetJsonWriter.write))
-      case Failure(f) => f match {
-        case e: TwitterException if e.code.intValue == 404 =>
-          val msg = "Not found, most likely typo in the Twitter handle!"
-          complete(StatusCodes.NotFound, new Exception(msg))
-        case _ =>
-          complete(StatusCodes.InternalServerError, new Exception("Internal Server error"))
-      }
+    onSuccess(futureTweets) { tweets =>
+      complete(tweets.map(TweetJsonWriter.write))
     }
   }
 
   val route =
-    path("shout") {
-      get {
-        parameters('username.as[String], 'n.as[Int])(uppercaseTweets)
+    handleExceptions(exceptionHandler) {
+      path("shout") {
+        get {
+          parameters('username.as[String], 'n.as[Int])(uppercaseTweets)
+        }
       }
     }
 
