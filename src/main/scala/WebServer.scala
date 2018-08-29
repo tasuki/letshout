@@ -1,12 +1,10 @@
 import scala.io.StdIn
-import scala.util.{ Failure, Success }
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{ ExceptionHandler, Route }
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.ExceptionHandler
 import akka.stream.ActorMaterializer
 
 object WebServer extends App with JsonSupport {
@@ -22,12 +20,9 @@ object WebServer extends App with JsonSupport {
       complete(StatusCodes.InternalServerError, new Exception("Internal Server error"))
   }
 
-  def shout(tweet: Tweet): Tweet =
-    tweet.copy(text = tweet.text.toUpperCase + "!")
-
-  def uppercaseTweets(username: String, numOfTweets: Int): Route = {
+  def shout(username: String, numOfTweets: Int): Route = {
     val futureTweets = Twitter.getTweets(username, numOfTweets)
-      .map(_.map(shout))
+      .map(_.map(_.shout))
 
     onSuccess(futureTweets) { tweets =>
       complete(tweets.map(TweetJsonWriter.write))
@@ -38,7 +33,7 @@ object WebServer extends App with JsonSupport {
     handleExceptions(exceptionHandler) {
       path("shout") {
         get {
-          parameters('username.as[String], 'n.as[Int])(uppercaseTweets)
+          parameters('username.as[String], 'n.as[Int])(shout)
         }
       }
     }
