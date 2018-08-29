@@ -1,4 +1,3 @@
-import scala.concurrent.Future
 import scala.io.StdIn
 import scala.util.{ Failure, Success }
 
@@ -8,8 +7,6 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
-import com.danielasfregola.twitter4s.TwitterRestClient
-import com.danielasfregola.twitter4s.entities.Tweet
 import com.danielasfregola.twitter4s.exceptions.TwitterException
 
 object WebServer extends App with JsonSupport {
@@ -17,18 +14,11 @@ object WebServer extends App with JsonSupport {
   implicit val materializer = ActorMaterializer()
   implicit val executionContext = system.dispatcher
 
-  val twitterClient = TwitterRestClient()
-
   def shout(tweet: Tweet): Tweet =
     tweet.copy(text = tweet.text.toUpperCase + "!")
 
-  def getTweets(username: String, count: Int): Future[Seq[Tweet]] =
-    twitterClient
-      .userTimelineForUser(screen_name = username, count = count)
-      .map(_.data)
-
   def uppercaseTweets(username: String, numOfTweets: Int): Route = {
-    val futureTweets = getTweets(username, numOfTweets)
+    val futureTweets = Twitter.getTweets(username, numOfTweets)
       .map(_.map(shout))
 
     onComplete(futureTweets) {
